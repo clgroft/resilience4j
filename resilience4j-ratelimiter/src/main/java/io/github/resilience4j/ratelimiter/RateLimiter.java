@@ -36,6 +36,7 @@ import java.time.Duration;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
+import java.util.concurrent.Future;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -156,6 +157,21 @@ public interface RateLimiter {
 				promise.completeExceptionally(exception);
 			}
 			return promise;
+		};
+	}
+
+	default <T> Future<T> executeFuture(Supplier<Future<T>> supplier) {
+		return decorateFuture(this, supplier).get();
+	}
+
+	static <T> Supplier<Future<T>> decorateFuture(RateLimiter rateLimiter, Supplier<Future<T>> supplier) {
+		return decorateFuture(rateLimiter, 1, supplier);
+	}
+
+	static <T> Supplier<Future<T>> decorateFuture(RateLimiter rateLimiter, int permits, Supplier<Future<T>> supplier) {
+		return () -> {
+			waitForPermission(rateLimiter, permits);
+			return supplier.get();
 		};
 	}
 
