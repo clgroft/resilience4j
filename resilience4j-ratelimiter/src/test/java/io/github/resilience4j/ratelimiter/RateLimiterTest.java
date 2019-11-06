@@ -25,10 +25,7 @@ import io.vavr.control.Either;
 import io.vavr.control.Try;
 
 import java.time.Duration;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.CompletionStage;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.LockSupport;
@@ -218,7 +215,7 @@ public class RateLimiterTest {
         given(limit.acquirePermission(1)).willReturn(true);
         AtomicReference<Throwable> shouldBeEmpty = new AtomicReference<>(null);
         CompletableFuture<String> success = decorated.get()
-            .whenComplete((v, e) -> error.set(e))
+            .whenComplete((v, e) -> shouldBeEmpty.set(e))
             .toCompletableFuture();
 
         Try<String> successResult = Try.of(success::get);
@@ -227,6 +224,33 @@ public class RateLimiterTest {
         assertThat(success.isCompletedExceptionally()).isFalse();
         assertThat(shouldBeEmpty.get()).isNull();
         then(supplier).should().get();
+    }
+
+    @Test
+    public void decoratedFutureWithNoPermissionShouldFail() {
+        Supplier<String> supplier = mock(Supplier.class);
+        given(supplier.get()).willReturn("Resource");
+        Supplier<Future<String>> decorated = RateLimiter.decorateFuture(limit, () -> supplyAsync(supplier));
+        given(limit.acquirePermission(1)).willReturn(false);
+
+        Try<String> errorResult = Try.of(() -> decorated.get().get());
+
+        then(supplier).should(never()).get();
+        assertTrue(errorResult.isFailure());
+        assertThat(errorResult.getCause()).isInstanceOf(RequestNotPermitted.class);
+    }
+
+    @Test
+    public void decorateFutureWithPermissionShouldSucceed() throws ExecutionException, InterruptedException {
+        Supplier<String> supplier = mock(Supplier.class);
+        given(supplier.get()).willReturn("Resource");
+        Supplier<Future<String>> decorated = RateLimiter.decorateFuture(limit, () -> supplyAsync(supplier));
+        given(limit.acquirePermission(1)).willReturn(true);
+
+        String result = decorated.get().get();
+
+        then(supplier).should().get();
+        assertThat(result).isEqualTo("Resource");
     }
 
     @Test

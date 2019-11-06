@@ -112,7 +112,7 @@ public interface RateLimiter {
 	 * @param <T> the type of results supplied by this supplier
 	 * @return the decorated CompletionStage.
 	 */
-	default <T> CompletionStage<T> executeCompletionStage(Supplier<CompletionStage<T>> supplier){
+	default <T> CompletionStage<T> executeCompletionStage(Supplier<? extends CompletionStage<T>> supplier){
 		return decorateCompletionStage(this, supplier).get();
 	}
 
@@ -124,7 +124,10 @@ public interface RateLimiter {
 	 * @param <T>         the type of the returned CompletionStage's result
 	 * @return a supplier which is decorated by a RateLimiter.
 	 */
-	static <T> Supplier<CompletionStage<T>> decorateCompletionStage(RateLimiter rateLimiter, Supplier<CompletionStage<T>> supplier) {
+	static <T> Supplier<CompletionStage<T>> decorateCompletionStage(
+			RateLimiter rateLimiter,
+			Supplier<? extends CompletionStage<T>> supplier
+	) {
 		return decorateCompletionStage(rateLimiter, 1, supplier);
 	}
 
@@ -137,7 +140,11 @@ public interface RateLimiter {
 	 * @param <T>         the type of the returned CompletionStage's result
 	 * @return a supplier which is decorated by a RateLimiter.
 	 */
-	static <T> Supplier<CompletionStage<T>> decorateCompletionStage(RateLimiter rateLimiter, int permits, Supplier<CompletionStage<T>> supplier) {
+	static <T> Supplier<CompletionStage<T>> decorateCompletionStage(
+			RateLimiter rateLimiter,
+			int permits,
+			Supplier<? extends CompletionStage<T>> supplier
+	) {
 		return () -> {
 
 			final CompletableFuture<T> promise = new CompletableFuture<>();
@@ -160,15 +167,15 @@ public interface RateLimiter {
 		};
 	}
 
-	default <T> Future<T> executeFuture(Supplier<Future<T>> supplier) {
-		return decorateFuture(this, supplier).get();
-	}
-
-	static <T> Supplier<Future<T>> decorateFuture(RateLimiter rateLimiter, Supplier<Future<T>> supplier) {
+	static <T, F extends Future<T>> Supplier<F> decorateFuture(RateLimiter rateLimiter, Supplier<? extends F> supplier) {
 		return decorateFuture(rateLimiter, 1, supplier);
 	}
 
-	static <T> Supplier<Future<T>> decorateFuture(RateLimiter rateLimiter, int permits, Supplier<Future<T>> supplier) {
+	static <T, F extends Future<T>> Supplier<F> decorateFuture(
+			RateLimiter rateLimiter,
+			int permits,
+			Supplier<? extends F> supplier
+	) {
 		return () -> {
 			waitForPermission(rateLimiter, permits);
 			return supplier.get();
